@@ -1,0 +1,59 @@
+# Python package
+# Create and test a Python package on multiple Python versions.
+# Add steps that analyze code, save the dist with the build record, publish to a PyPI-compatible index, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/python
+
+
+trigger:
+- master
+
+pool:
+  vmImage: 'windows-latest'
+strategy:
+  matrix:
+    Python37:
+      python.version: '3.7'
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '$(python.version)'
+  displayName: 'Use Python $(python.version)'
+
+- script: |
+    pip install pytest
+    pip install coverage
+    pip install pytest-cov
+    pip install mutpy
+  displayName: 'Python install'
+
+- task: PythonScript@0
+  displayName: 'Run python script(build)'
+  inputs:
+    scriptSource: 'filePath'
+    scriptPath:  $(System.DefaultWorkingDirectory)/src/simpleCalculator.py
+    
+- script: |
+    pytest tests --doctest-modules --junitxml=junit/test-results.xml --cov=. --cov-report=xml --cov-report=html
+  displayName: 'Test with pytest'
+
+- task: PublishTestResults@2
+  displayName: 'Publish test results'
+  inputs:
+    testResultsFiles: '**/test-*.xml'
+    testRunTitle: 'Publish test results for Python $(python.version)'
+
+- task: PublishCodeCoverageResults@1
+  displayName: 'Publish code coverage'
+  inputs:
+    codeCoverageTool: Cobertura
+    summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
+    reportDirectory: '$(System.DefaultWorkingDirectory)/**/htmlcov'
+
+- script: 
+    mut.py --target src/simpleCalculator --unit-test tests/test_simpleCalculator runner pytest
+  displayName: 'Run mutation testing'
+
+- script: 
+    mut.py --report-html $(System.DefaultWorkingDirectory)
+  displayName: 'Generate mutation test report in html'
